@@ -4,7 +4,8 @@ Draw a digit in the browser, the server shrinks it to 8x8 and a small neural net
 One free Render service: FastAPI + numpy (no sklearn at runtime).
 
 This is the "next step" after the softmax regression version
-(https://github.com/bobov1190/softmaxregressionDigits). Same drawing page, same preprocessing.
+(https://github.com/bobov1190/softmaxregressionDigits). Same drawing page, same preprocessing, and at first the same training data (only the model changed).
+Later both models were retrained on real drawings, see "How we train now" below.
 
 ## The model
 
@@ -15,6 +16,20 @@ This is the "next step" after the softmax regression version
 - 64*128 + 128 + 128*10 + 10 = 9610 parameters (softmax regression has 650)
 - the last step is still softmax, so "probabilities sum to 1" is the same idea as in the lesson
 - the new part is the hidden layer: 128 small "feature detectors" between the pixels and the answer
+
+## First version: how it was trained (`train_nn.py`, fake data only)
+
+- plain numpy, no deep-learning library
+- data, the same as for the softmax v2 model (`data_aug.py`):
+  - the original 8x8 digits (80% of the dataset, the other 20% is never trained on)
+  - many distorted "canvas" versions of them (rotation, slant, brush thickness)
+  - digits written with 15 fonts
+- Adam optimizer, mini-batches of 256, 80 epochs, learning rate 2e-3 with cosine decay, small weight decay
+- He initialisation (random weights, scaled by the layer size)
+- three fonts (comic, calibri, verdana) are held out and used only for testing
+
+Run it yourself: `pip install scikit-learn pillow numpy`, then `python train_nn.py`
+(needs Windows fonts, takes a few minutes). It writes `model/nn_weights.npz` (careful: that is the file `train_mine.py` writes too).
 
 ## An honest lesson: our first test was fake
 
@@ -83,6 +98,10 @@ The numbers of the first version (fake tests only, so do not trust them too much
 | the same images drawn as a canvas |   90.0% |      96.9% |
 | 3 fonts never seen in training    |   96.9% |      99.9% |
 
+The softmax column is `model/softmax_baseline.npy`, trained on exactly the same data.
+Fonts-as-drawn-with-a-thick-brush (`scripts/check_pipeline.py`) are harder than clean
+font digits: about 85% on the server pipeline.
+
 ### Honest table: real mouse drawings (made by `train_mine.py`)
 
 150 real drawings (15 per digit): 107 used for training, 43 locked away for testing
@@ -147,3 +166,8 @@ A free service sleeps after 15 minutes without requests; the first request after
   `{"digit": 4, "probs": [10 numbers], "grid": [8][8]}` (grid = what the model sees, 0..16)
 - `GET /config` tells the page whether collect mode is on
 - `POST /collect` (collect mode only) saves a labeled drawing
+
+## The softmax site got the same update
+
+The softmax trained here on the same data (`model/softmax_mine.npy`) is also installed in the softmax repo
+(https://github.com/bobov1190/softmaxregressionDigits, `model/weights.npy`), so both sites can be compared live.
