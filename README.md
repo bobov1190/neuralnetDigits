@@ -83,7 +83,36 @@ The numbers of the first version (fake tests only, so do not trust them too much
 | the same images drawn as a canvas |   90.0% |      96.9% |
 | 3 fonts never seen in training    |   96.9% |      99.9% |
 
-The honest table on real drawings (made by `train_mine.py`) goes to `model/results_mine.md`.
+### Honest table: real mouse drawings (made by `train_mine.py`)
+
+150 real drawings (15 per digit): 107 used for training, 43 locked away for testing
+(per digit: 0:2, 1:6, 2:5, 3:3, 4:5, 5:4, 6:4, 7:6, 8:3, 9:5). Both models were trained
+on exactly the same data (fake data + the 107 drawings, each repeated 40 times with small jitter).
+
+| test set | softmax (fake only) | net (fake only) | softmax (+ yours) | net (+ yours) |
+|---|---:|---:|---:|---:|
+| YOUR drawings (n=43) | 69.8% | 74.4% | 86.0% | 95.3% |
+| fake: dataset 8x8 | 93.6% | 98.1% | 92.2% | 98.3% |
+| fake: as canvas | 90.3% | 96.4% | 90.0% | 96.9% |
+| fake: unseen fonts | 97.6% | 99.8% | 97.2% | 99.9% |
+
+Mistakes on the 43 locked-away drawings:
+- softmax (+ yours): 0 read as 5, 1 as 6, 1 as 8, 4 as 9, 5 as 9, 9 as 0 (6 mistakes)
+- net (+ yours): 1 read as 7, 9 read as 0 (2 mistakes)
+
+What this shows:
+- Training on real drawings helped both models a lot on real drawings: softmax 69.8% -> 86.0%, net 74.4% -> 95.3%.
+  The fake-only models were weak on real drawings (about 70-75%), even though they scored 90-99% on fake tests.
+- On real drawings the net is better than softmax, but the first impression ("the net is worse") came from only 4 drawings.
+  Before training on real drawings the two were close (74.4% vs 69.8%).
+- Only 43 test drawings: one drawing is about 2.3 percentage points, so 95.3% vs 86.0% is a difference of 4 drawings.
+  It is a good sign, not a proof. More test drawings would make the numbers more reliable.
+- The net reaches 99.7% on its own training data but 95.3% on new drawings, so it still memorizes a bit.
+  Softmax stays at 90% on its training data: a linear model is too simple for some digits, more data would not fix that.
+- The test set is small, and it is drawn by one person (the same hand, mouse and canvas size).
+  The numbers are for this kind of drawing, another person may get different results.
+
+The table is also saved in `model/results_mine.md`.
 
 ## Things to remember
 

@@ -116,7 +116,7 @@ def synth_train(quick: bool) -> tuple[np.ndarray, np.ndarray]:
         c = np.load(CACHE)
         return c["X"], c["y"]
     print("building the fake training set (once, then cached) ...")
-    X, y = build_synth(da.AUG_PER_IMAGE, 300)
+    X, y = build_synth(da.AUG_PER_IMAGE, 30)  # 30 per digit per font = 4500, as in train_nn.py
     CACHE.parent.mkdir(exist_ok=True)
     np.savez_compressed(CACHE, X=X, y=y)
     return X, y

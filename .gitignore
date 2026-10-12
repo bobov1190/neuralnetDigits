@@ -4,3 +4,4 @@ __pycache__/
 .env
 .DS_Store
 data/synth_cache.npz
+train_mine.log
