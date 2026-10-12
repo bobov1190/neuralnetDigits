@@ -3,6 +3,9 @@
 Draw a digit in the browser, the server shrinks it to 8x8 and a small neural network guesses it.
 One free Render service: FastAPI + numpy (no sklearn at runtime).
 
+The page shows both models side by side (softmax regression and the neural net) and lets you look inside:
+see "The page: two models and a look inside" below.
+
 This is the "next step" after the softmax regression version
 (https://github.com/bobov1190/softmaxregressionDigits). Same drawing page, same preprocessing, and at first the same training data (only the model changed).
 Later both models were retrained on real drawings, see "How we train now" below.
@@ -133,6 +136,26 @@ What this shows:
 
 The table is also saved in `model/results_mine.md`.
 
+## The page: two models and a look inside
+
+One drawing, two answers. Softmax regression and the neural net get the same 8x8 grid and answer next to each other.
+When they disagree, the page says so. That is the best moment of the lesson: *why* do they disagree?
+
+**"Why this answer?" maps.** For each model the page draws an 8x8 map of how much each pixel pushed the model toward its
+answer instead of its runner-up (the digit with the second-highest probability):
+
+- red pixel: ink here pushed toward the answer, blue pixel: ink here pushed toward the runner-up, white: did not matter
+- softmax: **exact**. The score of a digit is `w . x + b`, so a pixel's contribution is `(w_top - w_other) * x`,
+  and all 64 contributions plus the bias difference add up to the gap between the two scores (checked in a test:
+  1.643 and 1.643)
+- neural net: an **approximation**, gradient x input of the same score gap. It adds up to about 7.0 where the real
+  gap grew by 6.5 in a test, because the hidden ReLU layer is not a straight line. It shows the direction, not the exact amount
+
+**The 10 softmax templates.** The 64 weights of each digit drawn as an 8x8 picture (`GET /templates`).
+Red = ink here votes for this digit, blue = ink here votes against it. A softmax score is these templates laid over your drawing.
+The templates are noisy, not neat digit shapes: they come from training on many different drawings, and each weight is
+tuned against all other digits at once, not to draw the digit.
+
 ## Things to remember
 
 - The dataset is only 8x8 and the models are small, so thin 1s and 7s can still be mixed up.
@@ -164,6 +187,9 @@ A free service sleeps after 15 minutes without requests; the first request after
 
 - `POST /predict` with `{"image": "<data URL or base64 PNG>"}` returns
   `{"digit": 4, "probs": [10 numbers], "grid": [8][8]}` (grid = what the model sees, 0..16)
+- `/predict` also returns `models.softmax` and `models.net`: each has `digit`, `probs` and `why`
+  (`top`, `other`, and the 8x8 `map` of contributions); the top-level `digit`/`probs` are the neural net's
+- `GET /templates` returns the 10 softmax weight pictures (10 x 8 x 8)
 - `GET /config` tells the page whether collect mode is on
 - `POST /collect` (collect mode only) saves a labeled drawing
 
