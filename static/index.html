@@ -26,6 +26,13 @@
           <button id="clear" class="inline-flex h-10 items-center justify-center rounded-md border border-zinc-200 bg-white px-4 text-sm font-medium hover:bg-zinc-100">Clear</button>
         </div>
         <p id="msg" class="mt-3 min-h-5 text-sm text-zinc-500"></p>
+
+        <!-- collect mode (only when the server runs locally with COLLECT=1) -->
+        <div id="collect" class="mt-4 hidden border-t border-zinc-200 pt-4">
+          <div class="text-xs font-medium uppercase tracking-wide text-zinc-500">Collect mode: save this drawing as (or press 0-9)</div>
+          <div id="saveBtns" class="mt-2 grid grid-cols-5 gap-2"></div>
+          <p id="total" class="mt-2 text-xs text-zinc-500"></p>
+        </div>
       </section>
 
       <!-- result card -->
@@ -101,6 +108,33 @@ function show({ digit, probs, grid }) {
     document.getElementById('p' + i).textContent = (p * 100).toFixed(p < 0.1 ? 1 : 0) + '%';
   });
 }
+
+// ---- collect mode ----
+const collectBox = document.getElementById('collect'), saveBtns = document.getElementById('saveBtns');
+function showCounts(counts) {
+  counts.forEach((n, i) => document.getElementById('save' + i).textContent = i + ' · ' + n);
+  document.getElementById('total').textContent = 'Saved drawings: ' + counts.reduce((a, b) => a + b, 0);
+}
+async function saveAs(label) {
+  try {
+    const res = await fetch('/collect', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: pad.toDataURL('image/png'), label }) });
+    const data = await res.json();
+    if (!res.ok) { msg.textContent = data.detail || 'Could not save.'; return; }
+    showCounts(data.counts); resetPad(); resetResult(); msg.textContent = 'Saved as ' + label + '.';
+  } catch (err) { msg.textContent = 'Could not reach the server.'; }
+}
+fetch('/config').then(r => r.json()).then(cfg => {
+  if (!cfg.collect) return;
+  collectBox.classList.remove('hidden');
+  for (let i = 0; i < 10; i++) {
+    const b = document.createElement('button'); b.id = 'save' + i;
+    b.className = 'inline-flex h-9 items-center justify-center rounded-md border border-zinc-200 bg-white text-sm font-medium hover:bg-zinc-100';
+    b.onclick = () => saveAs(i); saveBtns.appendChild(b);
+  }
+  showCounts(cfg.counts);
+  document.addEventListener('keydown', e => { if (/^[0-9]$/.test(e.key)) saveAs(+e.key); });
+}).catch(() => {});
 
 resetPad(); resetResult();
 </script>
