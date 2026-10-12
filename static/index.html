@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Neural Net Digits</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    canvas { touch-action: none; cursor: crosshair; }
+    .bar { transition: width .35s ease; }
+  </style>
+</head>
+<body class="min-h-screen bg-zinc-50 text-zinc-900">
+  <main class="mx-auto max-w-3xl px-4 py-10">
+    <header class="mb-8">
+      <h1 class="text-2xl font-semibold tracking-tight">Neural Net Digits</h1>
+      <p class="mt-1 text-sm text-zinc-500">Draw a digit. The server shrinks it to 8×8, and a small neural network (64 → 128 → 10, 9610 numbers) guesses it.</p>
+    </header>
+
+    <div class="grid gap-6 md:grid-cols-2">
+      <!-- drawing card -->
+      <section class="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <canvas id="pad" width="280" height="280" class="w-full rounded-lg bg-black"></canvas>
+        <div class="mt-4 flex gap-2">
+          <button id="guess" class="inline-flex h-10 flex-1 items-center justify-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">Guess</button>
+          <button id="clear" class="inline-flex h-10 items-center justify-center rounded-md border border-zinc-200 bg-white px-4 text-sm font-medium hover:bg-zinc-100">Clear</button>
+        </div>
+        <p id="msg" class="mt-3 min-h-5 text-sm text-zinc-500"></p>
+      </section>
+
+      <!-- result card -->
+      <section class="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div class="flex items-center gap-5">
+          <div id="digit" class="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-6xl font-semibold text-zinc-300">?</div>
+          <div>
+            <div class="text-xs font-medium uppercase tracking-wide text-zinc-500">What the model sees (8×8)</div>
+            <canvas id="grid" width="80" height="80" class="mt-2 h-20 w-20 rounded border border-zinc-200 bg-black" style="image-rendering:pixelated"></canvas>
+          </div>
+        </div>
+        <div class="mt-5 text-xs font-medium uppercase tracking-wide text-zinc-500">Probabilities</div>
+        <div id="bars" class="mt-2 space-y-1.5"></div>
+      </section>
+    </div>
+  </main>
+
+<script>
+const pad = document.getElementById('pad'), ctx = pad.getContext('2d');
+const msg = document.getElementById('msg'), guessBtn = document.getElementById('guess');
+const bars = document.getElementById('bars'), digitEl = document.getElementById('digit');
+const gridCv = document.getElementById('grid'), gctx = gridCv.getContext('2d');
+
+function resetPad() {
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, pad.width, pad.height);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 16; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+}
+function resetResult() {
+  digitEl.textContent = '?'; digitEl.className = digitEl.className.replace('text-zinc-900', 'text-zinc-300');
+  gctx.fillStyle = '#000'; gctx.fillRect(0, 0, 80, 80);
+  bars.innerHTML = '';
+  for (let i = 0; i < 10; i++) {
+    bars.insertAdjacentHTML('beforeend',
+      `<div class="flex items-center gap-2 text-sm"><span class="w-4 text-right tabular-nums text-zinc-500">${i}</span>
+       <div class="h-2.5 flex-1 overflow-hidden rounded-full bg-zinc-100"><div id="b${i}" class="bar h-full w-0 rounded-full bg-zinc-300"></div></div>
+       <span id="p${i}" class="w-12 text-right tabular-nums text-zinc-500">0%</span></div>`);
+  }
+}
+
+let drawing = false, last = null;
+const pos = e => { const r = pad.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * pad.width / r.width, y: (e.clientY - r.top) * pad.height / r.height }; };
+pad.addEventListener('pointerdown', e => { drawing = true; last = pos(e); pad.setPointerCapture(e.pointerId);
+  ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(last.x + .01, last.y); ctx.stroke(); });
+pad.addEventListener('pointermove', e => { if (!drawing) return; const p = pos(e);
+  ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke(); last = p; });
+['pointerup', 'pointercancel'].forEach(t => pad.addEventListener(t, () => drawing = false));
+
+document.getElementById('clear').onclick = () => { resetPad(); resetResult(); msg.textContent = ''; };
+
+guessBtn.onclick = async () => {
+  guessBtn.disabled = true; msg.textContent = 'Thinking… (a sleeping free server can take about a minute)';
+  try {
+    const res = await fetch('/predict', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: pad.toDataURL('image/png') }) });
+    const data = await res.json();
+    if (!res.ok) { msg.textContent = data.detail || 'Something went wrong.'; return; }
+    msg.textContent = '';
+    show(data);
+  } catch (err) { msg.textContent = 'Could not reach the server.'; }
+  finally { guessBtn.disabled = false; }
+};
+
+function show({ digit, probs, grid }) {
+  digitEl.textContent = digit; digitEl.className = digitEl.className.replace('text-zinc-300', 'text-zinc-900');
+  gctx.fillStyle = '#000'; gctx.fillRect(0, 0, 80, 80);
+  grid.forEach((row, r) => row.forEach((v, c) => {
+    const g = Math.round(255 * v / 16); gctx.fillStyle = `rgb(${g},${g},${g})`; gctx.fillRect(c * 10, r * 10, 10, 10); }));
+  probs.forEach((p, i) => {
+    const b = document.getElementById('b' + i);
+    b.style.width = (p * 100) + '%';
+    b.className = 'bar h-full rounded-full ' + (i === digit ? 'bg-zinc-900' : 'bg-zinc-300');
+    document.getElementById('p' + i).textContent = (p * 100).toFixed(p < 0.1 ? 1 : 0) + '%';
+  });
+}
+
+resetPad(); resetResult();
+</script>
+</body>
+</html>
